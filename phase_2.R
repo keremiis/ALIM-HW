@@ -2,6 +2,7 @@
 # phase_2.R
 # ==============================================================================
 
+# 1. SETUP & CONSTANTS
 library(tidyverse)
 library(demography)
 library(StMoMo) 
@@ -30,6 +31,7 @@ amount         <- 1
 proj_years     <- 100     
 all_pf_ages    <- 30:90   
 
+# 2. ACTUARIAL FUNCTIONS
 kannisto <- function(mhat, est.ages, proj.ages) {
   years <- rownames(mhat)
   mhat.proj <- matrix(NA, nrow = nrow(mhat), ncol = length(proj.ages), dimnames = list(rownames(mhat), proj.ages))
@@ -114,7 +116,7 @@ simulate_vasicek_spot_curves <- function(n_paths, T_years, r0 = 0.03, theta = 0.
   return(bind_rows(spot_paths))
 }
 
-
+# 3. DATA PREPARATION
 nld_deaths <- read.table("./HMD Data/Deaths_1x1.txt", skip = 2, header = TRUE)
 nld_exposures <- read.table("./HMD Data/Exposures_1x1.txt", skip = 2, header = TRUE)
 
@@ -146,7 +148,6 @@ rfr_curve_base <- rfr_all_years %>% filter(RFR_Year == "2026")
 
 # Note: The paths visualized in the report were generated under an earlier, 
 # unseeded global environment. The seed is set to ensure reproducibility of the code.
-
 vasicek_curves <- simulate_vasicek_spot_curves(
   n_paths = 5, 
   T_years = proj_years, 
@@ -164,6 +165,7 @@ df_survival <- data.frame(
   Cohort = c(1, cumprod(exp(-sapply(1:(120-age_eval), function(k) mhat_all_closed[as.character(valuation_year+k-1), as.character(age_eval+k-1)]))))
 ) %>% pivot_longer(cols = c(Period, Cohort), names_to = "Method", values_to = "Survival_Prob")
 
+# 4. PHASE 2 PLOTS
 plot_survival_curve <- ggplot(df_survival, aes(x = Attained_Age, y = Survival_Prob, color = Method, linetype = Method)) +
   geom_line(linewidth = 1.2) + scale_y_continuous(labels = scales::percent_format()) +
   scale_color_manual(values = c("Period" = colors_issurance$primary, "Cohort" = colors_issurance$accent)) +
