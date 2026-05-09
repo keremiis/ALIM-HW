@@ -91,7 +91,7 @@ calc_total_pv <- function(cf_vector, rfr_curve) {
   return(sum(cf_vector * c(1, 1 / ((1 + i_rates)^(1:(proj_years - 1))))))
 }
 
-# 3. DATA PREP & BASELINE FORECASTING
+# 3. DATA PREPARATION
 nld_data <- read.table("./HMD Data/Deaths_1x1.txt", skip=2, header=T) %>% left_join(read.table("./HMD Data/Exposures_1x1.txt", skip=2, header=T), by=c("Year", "Age")) %>% filter(Age != "110+") %>% mutate(Age=as.numeric(Age), mx=Total.x/Total.y)
 Dxt <- nld_data %>% filter(Age %in% 0:90) %>% select(Year, Age, Total.x) %>% pivot_wider(names_from = Year, values_from = Total.x) %>% column_to_rownames("Age") %>% as.matrix()
 Ext <- nld_data %>% filter(Age %in% 0:90) %>% select(Year, Age, Total.y) %>% pivot_wider(names_from = Year, values_from = Total.y) %>% column_to_rownames("Age") %>% as.matrix()
@@ -136,7 +136,7 @@ pv_green_down  <- calc_total_pv(cf_green_base, rfr_down)
 pv_silver_down <- calc_total_pv(cf_silver_base, rfr_down)
 pv_gold_down   <- calc_total_pv(cf_gold_base, rfr_down)
 
-# 5. STOCHASTIC SIMULATIONS (For Uncertainty & VaR)
+# 5.SIMULATIONS
 set.seed(2026) 
 LC_sim <- simulate(LCfit, h = 100, nsim = n_sims)
 mhat_sim_list <- lapply(1:n_sims, function(s) rbind(mhat_closed, kannisto(t(LC_sim$rates[,,s]), 80:90, 90:120)))
