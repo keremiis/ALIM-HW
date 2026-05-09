@@ -1,5 +1,5 @@
 # ==============================================================================
-# app.R (Interactive Dashboard - Classic UI with Data-Rich Charts)
+# app.R (Interactive Dashboard)
 # ==============================================================================
 
 # 1. SETUP & CONSTANTS
@@ -27,7 +27,7 @@ valuation_year <- 2023
 R              <- 65
 amount         <- 1
 all_pf_ages    <- 30:90
-portfolio_ages <- seq(30, 90, by = 10) # For point labeling
+portfolio_ages <- seq(30, 90, by = 10)
 
 # 2. ACTUARIAL FUNCTIONS
 kannisto <- function(mhat, est.ages, proj.ages) {
@@ -56,7 +56,7 @@ LA_cohort <- function(mhat_all, Age, Year, amount, rfr, R = 65){
   return(ifelse(Age >= R, amount, 0) + sum(amount * ifelse(Age + (1:n) >= R, 1, 0) * Tpxt / ((1 + i_r)^(1:n))))
 }
 
-# 3. DATA PREP & BASELINE FORECASTING (Runs once at startup)
+# 3. DATA PREP & BASELINE FORECASTING
 cat("Loading data and compiling baseline models for the dashboard...\n")
 nld_data <- read.table("./HMD Data/Deaths_1x1.txt", skip=2, header=T) %>% left_join(read.table("./HMD Data/Exposures_1x1.txt", skip=2, header=T), by=c("Year", "Age")) %>% filter(Age != "110+") %>% mutate(Age=as.numeric(Age), mx=Total.x/Total.y)
 Dxt <- nld_data %>% filter(Age %in% 0:90) %>% select(Year, Age, Total.x) %>% pivot_wider(names_from = Year, values_from = Total.x) %>% column_to_rownames("Age") %>% as.matrix()
@@ -70,13 +70,10 @@ mhat_all_closed <- rbind(mhat_closed, kannisto(mhat_future, 80:90, 90:120))
 rfr_files <- list.files(path = "./EIOPA Data", pattern = "\\.xlsx$", full.names = TRUE)
 rfr_curve_base <- bind_rows(lapply(rfr_files, function(file) { read_excel(file, sheet = "RFR_spot_with_VA", skip = 1) %>% select(T = 1, i = starts_with("Nether")) %>% mutate(T = as.numeric(T), i = as.numeric(i), RFR_Year = str_extract(file, "\\d{4}")) %>% drop_na() })) %>% filter(RFR_Year == "2026")
 
-# ==============================================================================
 # 4. SHINY APP UI & SERVER
-# ==============================================================================
-
 ui <- fluidPage(
   
-  titlePanel("Dynamic Solvency II Mortality Shock Simulator"),
+  titlePanel("Dynamic Solvency Mortality Shock Simulator"),
   
   sidebarLayout(
     sidebarPanel(
@@ -103,11 +100,9 @@ ui <- fluidPage(
 
 server <- function(input, output, session) {
   
-  # Calculate Baseline values ONCE so the app is fast
   base_le <- sapply(all_pf_ages, function(a) LE_cohort(mhat_all_closed, a, valuation_year))
   base_epv <- sapply(all_pf_ages, function(a) LA_cohort(mhat_all_closed, a, valuation_year, amount, rfr_curve_base, R))
   
-  # Reactive expression
   shocked_matrix <- reactive({
     mhat_future_shock <- mhat_future * input$mort_mult
     mhat_future_shock_closed <- kannisto(mhat_future_shock, 80:90, 90:120)
@@ -118,7 +113,6 @@ server <- function(input, output, session) {
     shock_le <- sapply(all_pf_ages, function(a) LE_cohort(shocked_matrix(), a, valuation_year))
     df_le <- data.frame(Age = all_pf_ages, Base = base_le, Shock = shock_le)
     
-    # Calculate real-time impact metric for Age 65
     impact_65 <- df_le$Shock[df_le$Age == 65] - df_le$Base[df_le$Age == 65]
     impact_text <- sprintf("Impact at Age 65: %+.2f Years", impact_65)
     
@@ -127,7 +121,6 @@ server <- function(input, output, session) {
       geom_line(aes(y = Base, color = "Base Scenario (1.0x)"), linewidth = 1.2, linetype = "dashed") +
       geom_line(aes(y = Shock, color = "Shocked Scenario"), linewidth = 1.5) +
       
-      # Informative Data Points and Labels
       geom_point(data = filter(df_le, Age %in% portfolio_ages), aes(y = Shock, color = "Shocked Scenario"), size = 3) +
       geom_text(data = filter(df_le, Age %in% portfolio_ages), aes(y = Shock, label = round(Shock, 1)), 
                 vjust = ifelse(input$mort_mult < 1, -1.2, 1.8), fontface = "bold", color = colors_issurance$primary) +
@@ -144,7 +137,6 @@ server <- function(input, output, session) {
     shock_epv <- sapply(all_pf_ages, function(a) LA_cohort(shocked_matrix(), a, valuation_year, amount, rfr_curve_base, R))
     df_epv <- data.frame(Age = all_pf_ages, Base = base_epv, Shock = shock_epv)
     
-    # Calculate real-time impact metric for Age 65
     impact_pct_65 <- (df_epv$Shock[df_epv$Age == 65] - df_epv$Base[df_epv$Age == 65]) / df_epv$Base[df_epv$Age == 65] * 100
     impact_text <- sprintf("Liability Impact at Age 65: %+.2f%%", impact_pct_65)
     
@@ -153,7 +145,6 @@ server <- function(input, output, session) {
       geom_line(aes(y = Base, color = "Base Scenario (1.0x)"), linewidth = 1.2, linetype = "dashed") +
       geom_line(aes(y = Shock, color = "Shocked Scenario"), linewidth = 1.5) +
       
-      # Informative Data Points and Labels
       geom_point(data = filter(df_epv, Age %in% portfolio_ages), aes(y = Shock, color = "Shocked Scenario"), size = 3) +
       geom_text(data = filter(df_epv, Age %in% portfolio_ages), aes(y = Shock, label = round(Shock, 2)), 
                 vjust = ifelse(input$mort_mult < 1, -1.2, 1.8), fontface = "bold", color = colors_issurance$primary) +
