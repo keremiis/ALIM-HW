@@ -74,7 +74,7 @@ LA_cohort <- function(mhat_all, Age, Year, amount, rfr, R = 65){
   return(cf_0 + sum(amount * indicator * Tpxt * v))
 }
 
-# 3. DATA PREP & BASELINE FORECASTING
+# 3. DATA PREPARATION
 nld_deaths <- read.table("./HMD Data/Deaths_1x1.txt", skip = 2, header = TRUE)
 nld_exposures <- read.table("./HMD Data/Exposures_1x1.txt", skip = 2, header = TRUE)
 
@@ -101,7 +101,7 @@ rfr_curve_base <- bind_rows(lapply(rfr_files, function(file) {
     mutate(T = suppressWarnings(as.numeric(T)), i = suppressWarnings(as.numeric(i)), RFR_Year = str_extract(file, "\\d{4}")) %>% drop_na()
 })) %>% filter(RFR_Year == "2026")
 
-# Calculate Deterministic Baselines (Needed for plot lines)
+# Calculate Deterministic Baselines
 df_le_shocks <- data.frame(
   Age = all_pf_ages, 
   Base = sapply(all_pf_ages, function(a) LE_cohort(mhat_all_closed, a, valuation_year)), 
@@ -115,7 +115,7 @@ df_mort_shocks <- data.frame(
   Mort = sapply(all_pf_ages, function(a) LA_cohort(mhat_all_mort, a, valuation_year, amount, rfr_curve_base, R))
 )
 
-# 4. PHASE 3: STOCHASTIC SIMULATIONS
+# 4. STOCHASTIC SIMULATIONS
 set.seed(2026) 
 LC_sim <- simulate(LCfit, h = 100, nsim = n_sims)
 
@@ -137,13 +137,12 @@ df_stoch_all <- expand_grid(Age = all_pf_ages, Simulation = 1:n_sims) %>%
     EPV = LA_cohort(mhat_sim_list[[Simulation]], Age = Age, Year = valuation_year, amount = amount, rfr = rfr_curve_base, R = R)
   ) %>% ungroup()
 
-# 5. PLOTTING
+# 5. PHASE 3 PLOTS
 plot_sim_kt <- ggplot() +
   geom_line(data = df_kt_sims, aes(x = Year, y = kt, group = Simulation), color = colors_issurance$highlight, alpha = 0.03) +
   geom_line(data = df_kt_hist, aes(x = Year, y = kt), color = colors_issurance$primary, linewidth = 1.5) +
   theme_issurance() + labs(title = expression(paste("Stochastic Evolution of Mortality Trend (", k[t], ")")), subtitle = "1,000 simulations into the future", x = "Year", y = expression(k[t]))
 
-# 3D Life Expectancy Plot
 ages_to_plot <- seq(30, 90, by = 5)
 le_range <- seq(min(df_stoch_all$LE), max(df_stoch_all$LE), length.out = 200)
 plot_sim_le_3d <- plot_ly()
@@ -153,7 +152,7 @@ for (current_age in ages_to_plot) {
 }
 plot_sim_le_3d <- plot_sim_le_3d %>% layout(title = "Life Expectancy Distributions Across Ages (3D)", scene = list(xaxis = list(title = "Age", range = c(90, 30)), yaxis = list(title = "Life Expectancy"), zaxis = list(title = "Density", showticklabels = FALSE), camera = list(eye = list(x = -1.5, y = -1.5, z = 0.5))))
 
-# Age 50 2D Distributions
+
 df_50 <- df_stoch_all %>% filter(Age == 50)
 plot_sim_le_50 <- ggplot() +
   geom_histogram(data = df_50, aes(x = LE, y = after_stat(density)), bins = 30, fill = colors_issurance$silver_pf, color = "white") +
@@ -169,7 +168,7 @@ plot_sim_epv_50 <- ggplot() +
   scale_color_manual(values = c("Shock (0.8x)" = colors_issurance$accent, "Base" = colors_issurance$highlight, "Shock (1.15x)" = colors_issurance$green_pf, "VaR (2% & 98%)" = colors_issurance$gold_pf)) +
   theme_issurance() + theme(legend.position = "bottom", legend.box = "horizontal") + guides(color = guide_legend(nrow = 1, title = NULL)) + labs(title = "Distribution Fitting: Age 50 EPV", x = "Expected Present Value", y = "Probability Density")
 
-# 3D EPV Plot
+
 epv_range <- seq(min(df_stoch_all$EPV), max(df_stoch_all$EPV), length.out = 200)
 plot_sim_epv_3d <- plot_ly()
 for (current_age in ages_to_plot) {
@@ -178,7 +177,7 @@ for (current_age in ages_to_plot) {
 }
 plot_sim_epv_3d <- plot_sim_epv_3d %>% layout(title = "EPV Distributions Across Ages (3D)", scene = list(xaxis = list(title = "Age", range = c(90, 30)), yaxis = list(title = "EPV"), zaxis = list(title = "Density", showticklabels = FALSE), camera = list(eye = list(x = -1.5, y = -1.5, z = 0.5))))
 
-# Adequacy Gap Plot
+
 df_var_all <- df_stoch_all %>% group_by(Age) %>% summarize(VaR_02 = quantile(EPV, 0.02), VaR_98 = quantile(EPV, 0.98), .groups = 'drop')
 plot_adequacy <- ggplot(df_mort_shocks %>% inner_join(df_var_all, by = "Age") %>% mutate(Longevity = (Long - VaR_98) / VaR_98 * 100, Mortality = (Mort - VaR_02) / VaR_02 * 100) %>% select(Age, Longevity, Mortality) %>% pivot_longer(cols = c(Longevity, Mortality), names_to = "Tail", values_to = "Gap_Pct") %>% mutate(Tail = ifelse(Tail == "Longevity", "Right Tail: Longevity (0.8x vs 98% VaR)", "Left Tail: Early Mortality (1.15x vs 2% VaR)")), aes(x = Age, y = Gap_Pct, color = Tail)) +
   geom_hline(yintercept = 0, linetype = "dashed", color = "grey", linewidth = 1) + geom_line(linewidth = 1.5) + geom_point(size = 3) +
