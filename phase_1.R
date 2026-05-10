@@ -167,8 +167,7 @@ plot_epv_line <- ggplot(df_epv_all, aes(x = Age, y = EPV)) +
   scale_y_continuous(expand = expansion(mult = c(0.1, 0.2))) + 
   theme_issurance() + 
   labs(
-    title = "Expected Present Value (EPV) Curve", 
-    subtitle = "Value of a 1-unit annuity starting at Age 65 (Period 2023 Data)",
+    title = "Expected Present Value (EPV) Curve",
     x = "Participant Age", 
     y = "Expected Present Value"
   )
